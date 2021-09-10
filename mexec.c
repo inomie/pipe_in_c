@@ -27,16 +27,54 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     } 
 
+    //Add null to the array so strlen and strcat works.
     string[0] = '\0';
 
     //Get the commands to string[].
     int numOfCommands = readCommands(buff, string, argc, argv);
     
+    //Array for the child to use.
+    char* test = malloc(1024 * sizeof(*string) + 1);
 
+    //Add null to the array so strlen.
+    test[0] = '\0';
     
+    //Number of what child it is.
+    int j = 2;
+    //Count on what command it is on.
+    int count = 0;
 
+    int k = 0;
+    for (size_t i = 0; i <= strlen(string); i++)
+    {
+        test[k] = string[i];
+        k++;
+        if (string[i] == '\n')
+        {
+            count += 1;
+            if(count == j) {
+                break;
+            } else{
+                
+                //Empty the array
+                for (size_t i = 0; i <= sizeof(test); i++)
+                {
+                    test[i] = '\0';
+                }
+                
+                k = 0;
+            }
+            
+        }
+        
+        
+    }
     
-
+    
+    
+    printf("%ld\n", strlen(test));
+    printf("%s\n", test);
+    printf("\n");
     printf("%s", string);
     printf("%d", numOfCommands);
     
@@ -46,7 +84,7 @@ int main(int argc, char *argv[]) {
 
     free(buff);
     free(string);
-
+    free(test);
     return 0;
 }
 
