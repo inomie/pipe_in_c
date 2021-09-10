@@ -15,88 +15,28 @@
  * 
  */
 
-int readCommands(char* buff, char* string, int argc, char* argv[]);
+
 int numCommands(char* string, int commandsFrom);
+void childCommand(char* command, char* string, int child);
 
 int main(int argc, char *argv[]) {
 
-    char* buff = malloc(1024 * sizeof(*buff) + 1);
-    char* string = malloc(1024 * sizeof(*string) + 1);
-    if(buff == NULL){
+    char* buff = (char *)malloc(1024 * sizeof(char) + 1);
+    char* string = (char *)malloc(1024 * sizeof(char) + 1);
+    if(buff == NULL || string == NULL){
         fprintf(stderr, "Malloc failed");
         exit(EXIT_FAILURE);
     } 
 
+    
+    
     //Add null to the array so strlen and strcat works.
     string[0] = '\0';
-
+    
     //Get the commands to string[].
-    int numOfCommands = readCommands(buff, string, argc, argv);
-    
-    //Array for the child to use.
-    char* test = malloc(1024 * sizeof(*string) + 1);
+    int numOfCommands = 0;
 
-    //Add null to the array so strlen.
-    test[0] = '\0';
-    
-    //Number of what child it is.
-    int j = 2;
-    //Count on what command it is on.
-    int count = 0;
-
-    int k = 0;
-    for (size_t i = 0; i <= strlen(string); i++)
-    {
-        test[k] = string[i];
-        k++;
-        if (string[i] == '\n')
-        {
-            count += 1;
-            if(count == j) {
-                break;
-            } else{
-                
-                //Empty the array
-                for (size_t i = 0; i <= sizeof(test); i++)
-                {
-                    test[i] = '\0';
-                }
-                
-                k = 0;
-            }
-            
-        }
-        
-        
-    }
-    
-    
-    
-    printf("%ld\n", strlen(test));
-    printf("%s\n", test);
-    printf("\n");
-    printf("%s", string);
-    printf("%d", numOfCommands);
-    
-    
-
-    
-
-    free(buff);
-    free(string);
-    free(test);
-    return 0;
-}
-
-/**
- * Reads in all the commands from file, stdin(file) and stdin(terminal).
- * @param buff An array to store the in data on.
- * @param string Where to save all the in data on.
- * @param argc How many arguments was it at start.
- * @param argv Array of all the arguments.
- * @return Returns 0 = commands from file, 1 = commands from user.
- */
-int readCommands(char* buff, char* string, int argc, char* argv[]){
+    //-----------------------------------Function (krånglar med realloc i en funktion)------------------------------------------------------------------
 
     //Sets the pointer to the end of stdin buffer.
     fseek(stdin, 0, SEEK_END);
@@ -121,16 +61,30 @@ int readCommands(char* buff, char* string, int argc, char* argv[]){
 
         }else {
             
+            int loops = 0;
             while(fgets(buff, sizeof(buff), fp) != NULL) {
 
+                loops++;
+                int count = loops * 1000;
+            
+                if(loops > 1) {
+                    string = realloc(string, (count*sizeof(char) + 1));
+                    if(string == NULL) {
+                        fprintf(stderr, "Realloc fail");
+                        exit(EXIT_FAILURE);
+                    }
+                }
                 //Check size of the commands, max length is 1024 characters.
-                if (strlen(buff) <= 1024) {
+                if (strlen(buff) < 1024) {
                     strncat(string, buff, strlen(buff));
+                } else{
+                    fprintf(stderr, "One command is to long");
+                    exit(EXIT_FAILURE);
                 }
                 
             }
-            fclose(fp);
-            return numCommands(string, commandsFrom);
+            
+            numOfCommands = numCommands(string, commandsFrom);
         }
 
         fclose(fp);
@@ -145,40 +99,91 @@ int readCommands(char* buff, char* string, int argc, char* argv[]){
         
         //Set the pointer to the beginning of the stdin buffer.
         fseek(stdin, 0, SEEK_SET);
-        
+        int loops = 0;
         while (fgets(buff, sizeof(buff), stdin) != NULL){
 
             
-            if(strlen(buff) <= 1024) {
-                strcat(string, buff);
+            loops++;
+            int count = loops * 1000;
+            
+            if(loops > 1) {
+                string = realloc(string, (count*sizeof(char) + 1));
+                if(string == NULL) {
+                    fprintf(stderr, "Realloc fail");
+                    exit(EXIT_FAILURE);
+                }
+                
             }
-            
-            
-            
+            if(strlen(buff) < 1024) {
+                strcat(string, buff);
+            } else{
+                fprintf(stderr, "One command is to long");
+                exit(EXIT_FAILURE);
+            }
+             
         }
         
-        return numCommands(string, commandsFrom);
+        numOfCommands = numCommands(string, commandsFrom);
            
     } else {
         
+        int loops = 0;
         //Reads stdin from user until ctrl-d, and check if the commands is under 1025 charcters.
         while (fgets(buff, sizeof(buff), stdin) != NULL){
 
             
-
-            if(strlen(buff) <= 1024) {
+            loops++;
+            int count = loops * 1000;
+            
+            if(loops > 1) {
+                string = realloc(string, (count*sizeof(char) + 1));
+                if(string == NULL) {
+                    fprintf(stderr, "Realloc fail");
+                    exit(EXIT_FAILURE);
+                }
+                
+            }
+            if(strlen(buff) < 1024) {
                 strcat(string, buff);
+            } else{
+                fprintf(stderr, "One command is to long");
+                exit(EXIT_FAILURE);
             }
             
-            
         }
-
+        
         commandsFrom = 1;
-        return numCommands(string, commandsFrom);
+        numOfCommands = numCommands(string, commandsFrom);
           
     }
+    
+    //------------------------------------------------------------------------------------------------------------------
 
+
+    //Array for the child to use.
+    char *command = malloc(1024 * sizeof(char) + 1);
+    int child = 1;
+    
+    childCommand(command, string, child);
+    
+    
+    printf("%s\n", command);
+    //printf("%s\n", string);
+    printf("%d\n", numOfCommands);
+    
+    
+
+    
+
+    free(buff);
+    free(string);
+    free(command);
+
+    return 0;
 }
+
+
+
 
 /**
  * Counts how many commands that was writen to know how many children it needs.
@@ -203,6 +208,38 @@ int numCommands(char* string, int commandsFrom) {
         commands++;  
     }
     
-
+    
     return commands;
+}
+
+void childCommand(char* command, char* string, int child) {
+    int k = 0;
+    int h = 0;
+    for (size_t i = 0; i <= strlen(string); i++)
+    {
+        if(string[i] == '\n' || string[i] == '\0') {
+            if(k == child){
+                command[h] = '\0';
+                break;
+            } else {
+                if(k < 1){
+                    for (size_t j = 0; j < i; j++)
+                    {
+                        command[j] = '\0';
+                    }
+                    
+                } else{
+                    for (size_t j = 0; j < (i - h); j++)
+                    {
+                        command[j] = '\0';
+                    }
+                    
+                }
+                h = 0;
+            }
+            k++;
+        }
+        command[h] = string[i];
+        h++;
+    }
 }
