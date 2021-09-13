@@ -5,6 +5,8 @@
 #include <sys/wait.h>
 #include <dirent.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 /**
  * @author Robin Lundin Söderberg
@@ -23,20 +25,19 @@ int main(int argc, char *argv[]) {
 
     char* buff = (char *)malloc(1024 * sizeof(char) + 1);
     char* string = (char *)malloc(1024 * sizeof(char) + 1);
+
     if(buff == NULL || string == NULL){
         fprintf(stderr, "Malloc failed");
         exit(EXIT_FAILURE);
     } 
 
-    
-    
     //Add null to the array so strlen and strcat works.
     string[0] = '\0';
     
     //Get the commands to string[].
     int numOfCommands = 0;
 
-    //-----------------------------------Function (krånglar med realloc i en funktion)------------------------------------------------------------------
+    //-----------------------------------Function (krånglar med realloc i en funktion måste ha in dubbel pekare)------------------------------------------------------------------
 
     //Sets the pointer to the end of stdin buffer.
     fseek(stdin, 0, SEEK_END);
@@ -81,9 +82,7 @@ int main(int argc, char *argv[]) {
                     fprintf(stderr, "One command is to long");
                     exit(EXIT_FAILURE);
                 }
-                
             }
-            
             numOfCommands = numCommands(string, commandsFrom);
         }
 
@@ -102,7 +101,6 @@ int main(int argc, char *argv[]) {
         int loops = 0;
         while (fgets(buff, sizeof(buff), stdin) != NULL){
 
-            
             loops++;
             int count = loops * 1000;
             
@@ -119,8 +117,7 @@ int main(int argc, char *argv[]) {
             } else{
                 fprintf(stderr, "One command is to long");
                 exit(EXIT_FAILURE);
-            }
-             
+            } 
         }
         
         numOfCommands = numCommands(string, commandsFrom);
@@ -131,7 +128,6 @@ int main(int argc, char *argv[]) {
         //Reads stdin from user until ctrl-d, and check if the commands is under 1025 charcters.
         while (fgets(buff, sizeof(buff), stdin) != NULL){
 
-            
             loops++;
             int count = loops * 1000;
             
@@ -149,41 +145,63 @@ int main(int argc, char *argv[]) {
                 fprintf(stderr, "One command is to long");
                 exit(EXIT_FAILURE);
             }
-            
         }
         
         commandsFrom = 1;
+
         numOfCommands = numCommands(string, commandsFrom);
           
     }
     
     //------------------------------------------------------------------------------------------------------------------
 
+    //int pids[numOfCommands];
+    int numOfPipes = numOfCommands - 1;
+    int pipes[numOfPipes][2];
+
+    for (int i = 0; i < numOfPipes; i++){
+        
+        if(pipe(pipes[i]) < 0){
+            perror("Failed to pipe");
+            exit(EXIT_FAILURE);
+        }
+
+    }
 
     //Array for the child to use.
     char *command = malloc(1024 * sizeof(char) + 1);
-    int child = 1;
-    
-    childCommand(command, string, child);
-    
-    
-    printf("%s\n", command);
-    //printf("%s\n", string);
-    printf("%d\n", numOfCommands);
-    
-    
 
+    childCommand(command, string, 1);
     
+    pid_t pid = fork();
 
+    if(pid == 0) {
+        
+        char *arr[] = {NULL};
+        char *token = strtok(command, " ");
+        arr[0] = token;
+        
+        int k = 0;
+        while (token != NULL)
+        {  
+            arr[k] = token;
+            token = strtok(NULL, " ");
+            k++;
+        }
+        
+        arr[k] = '\0';
+
+        execvp(arr[0], arr);
+    }
+    
+    wait(NULL);
+    
+    free(command);
     free(buff);
     free(string);
-    free(command);
 
     return 0;
 }
-
-
-
 
 /**
  * Counts how many commands that was writen to know how many children it needs.
@@ -208,12 +226,11 @@ int numCommands(char* string, int commandsFrom) {
         commands++;  
     }
     
-    
     return commands;
 }
 
 void childCommand(char* command, char* string, int child) {
-    int k = 0;
+    int k = 1;
     int h = 0;
     for (size_t i = 0; i <= strlen(string); i++)
     {
