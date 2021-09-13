@@ -171,7 +171,7 @@ int main(int argc, char *argv[]) {
     //Array for the child to use.
     char *command = malloc(1024 * sizeof(char) + 1);
 
-    childCommand(command, string, 1);
+    childCommand(command, string, 0);
     
     pid_t pid = fork();
 
@@ -230,7 +230,7 @@ int numCommands(char* string, int commandsFrom) {
 }
 
 void childCommand(char* command, char* string, int child) {
-    int k = 1;
+    int k = 0;
     int h = 0;
     for (size_t i = 0; i <= strlen(string); i++)
     {
