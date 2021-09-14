@@ -17,7 +17,6 @@
  * 
  */
 
-
 int numCommands(char* string, int commandsFrom);
 void childCommand(char* command, char* string, int child);
 
@@ -37,7 +36,7 @@ int main(int argc, char *argv[]) {
     //Get the commands to string[].
     int numOfCommands = 0;
 
-    //-----------------------------------Function (krånglar med realloc i en funktion måste ha in dubbel pekare)------------------------------------------------------------------
+    //---Function (Canr be in function. Realloc dont work in function, can be a problem to realloc a char *. Maybe need char **)---
 
     //Sets the pointer to the end of stdin buffer.
     fseek(stdin, 0, SEEK_END);
@@ -109,8 +108,7 @@ int main(int argc, char *argv[]) {
                 if(string == NULL) {
                     fprintf(stderr, "Realloc fail");
                     exit(EXIT_FAILURE);
-                }
-                
+                } 
             }
             if(strlen(buff) < 1024) {
                 strcat(string, buff);
@@ -136,8 +134,7 @@ int main(int argc, char *argv[]) {
                 if(string == NULL) {
                     fprintf(stderr, "Realloc fail");
                     exit(EXIT_FAILURE);
-                }
-                
+                }  
             }
             if(strlen(buff) < 1024) {
                 strcat(string, buff);
@@ -148,55 +145,129 @@ int main(int argc, char *argv[]) {
         }
         
         commandsFrom = 1;
-
-        numOfCommands = numCommands(string, commandsFrom);
-          
+        numOfCommands = numCommands(string, commandsFrom);   
     }
     
     //------------------------------------------------------------------------------------------------------------------
 
-    //int pids[numOfCommands];
+    int pids[numOfCommands];
     int numOfPipes = numOfCommands - 1;
     int pipes[numOfPipes][2];
-
+    
+    
     for (int i = 0; i < numOfPipes; i++){
-        
         if(pipe(pipes[i]) < 0){
             perror("Failed to pipe");
             exit(EXIT_FAILURE);
         }
-
     }
-
-    //Array for the child to use.
-    char *command = malloc(1024 * sizeof(char) + 1);
-
-    childCommand(command, string, 0);
     
-    pid_t pid = fork();
+    
+    
+    
+    for (int i = 0; i < numOfCommands; i++)
+    {
+        pids[i] = fork();
 
-    if(pid == 0) {
-        
-        char *arr[] = {NULL};
-        char *token = strtok(command, " ");
-        arr[0] = token;
-        
-        int k = 0;
-        while (token != NULL)
-        {  
-            arr[k] = token;
-            token = strtok(NULL, " ");
-            k++;
+        if(pids[i] < 0) {
+            perror("Fork failed");
+            exit(EXIT_FAILURE);
+        } else if(pids[i] == 0){
+
+            /* Close pipes */
+            
+            for (int j = 0; j < numOfPipes; j++)
+            {
+                
+                if(i != j) {
+                    close(pipes[j][1]);
+                }
+                if(i - 1 != j) {
+                    close(pipes[j][0]);
+                }
+                
+            }
+            
+            
+            
+            /* Dup2 */
+
+            if(i == 0){
+                
+                if (dup2(pipes[i][1], STDOUT_FILENO) < 0) {
+                    perror("dup failed 1");
+                    close(pipes[i][1]);
+                    exit(EXIT_FAILURE);
+                }
+                
+            } else if (i == (numOfCommands - 1)){
+                
+                if (dup2(pipes[i - 1][0], STDIN_FILENO) < 0) {
+                    perror("dup failed 2");
+                    close(pipes[i - 1][0]);
+                    exit(EXIT_FAILURE);
+                }
+                
+            } else {
+                if (dup2(pipes[i - 1][0], STDIN_FILENO) < 0) {
+                    perror("dup failed 2");
+                    close(pipes[i - 1][0]);
+                    exit(EXIT_FAILURE);
+                }
+                if (dup2(pipes[i][1], STDOUT_FILENO) < 0) {
+                    perror("dup failed 1");
+                    close(pipes[i][1]);
+                    exit(EXIT_FAILURE);
+                }
+            }
+            
+            /* Child code*/
+            char *command = malloc(1024 * sizeof(char) + 1);
+            childCommand(command, string, i);
+            
+            char *arr[] = {NULL};
+            char *token = strtok(command, " ");
+            arr[0] = token;
+            
+            int index = 0;
+            while (token != NULL)
+            {  
+                arr[index] = token;
+                token = strtok(NULL, " ");
+                index++;
+            }
+    
+            arr[index] = '\0';
+            
+            
+            
+            
+
+            
+                
+            
+            if(execvp(arr[0], arr) < 0) {
+                perror("exec fail\n");
+                exit(EXIT_FAILURE);
+            }
+            
+            
+            exit(0);
         }
-        
-        arr[k] = '\0';
-
-        execvp(arr[0], arr);
     }
+
+    /* Parent code */
+    for (int i = 0; i < numOfPipes; i++)
+    {
+        close(pipes[i][0]);
+        close(pipes[i][1]);
+    }
+    for (int j = 0; j < numOfCommands; j++)
+    {
+        wait(NULL);
+        
+    } 
     
-    wait(NULL);
-    
-    free(command);
     free(buff);
     free(string);
 
@@ -214,49 +285,45 @@ int numCommands(char* string, int commandsFrom) {
     int commands = 0;
     size_t i = 0;
     while(i <= strlen(string)) {
-
         if(string[i] == '\n') {
             commands++;
         }
         i++;
     }
-    
     //last command ends with '\0' from files and do not have an '\n'.
     if(commandsFrom == 0) {
         commands++;  
     }
-    
     return commands;
 }
 
 void childCommand(char* command, char* string, int child) {
     int k = 0;
-    int h = 0;
+    int index = 0;
     for (size_t i = 0; i <= strlen(string); i++)
     {
         if(string[i] == '\n' || string[i] == '\0') {
             if(k == child){
-                command[h] = '\0';
+                command[index] = '\0';
                 break;
             } else {
                 if(k < 1){
                     for (size_t j = 0; j < i; j++)
                     {
                         command[j] = '\0';
-                    }
-                    
+                    } 
                 } else{
-                    for (size_t j = 0; j < (i - h); j++)
+                    for (size_t j = 0; j < (i - index); j++)
                     {
                         command[j] = '\0';
-                    }
-                    
+                    } 
                 }
-                h = 0;
+                index = 0;
             }
             k++;
-        }
-        command[h] = string[i];
-        h++;
+        }else {
+           command[index] = string[i]; 
+           index++;
+        } 
     }
 }
