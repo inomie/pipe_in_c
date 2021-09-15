@@ -273,25 +273,11 @@ int main(int argc, char *argv[]) {
                 index++;
             }
 
-                printf("%s\n", arr[0]);
-                printf("%s\n", arr[1]);
-            //arr[index] = NULL;
             
-            //printf("%s\n", arr[index]);
             
-            /* Exec of the command */
-            /*if(execvp(arr[0], arr) < 0) {
-                perror(arr[0]);
-                free(command);
-                free(buff);
-                free(string);
-                exit(EXIT_FAILURE);
-            }*/
-
-            printf("hej du ska ej vara här");
             free(buff);
             free(string);
-            exit(0);
+            exit(EXIT_FAILURE);
             
         }
     }
