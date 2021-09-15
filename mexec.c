@@ -1,19 +1,28 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <sys/types.h>
 #include <sys/wait.h>
-#include <dirent.h>
 #include <string.h>
-#include <sys/stat.h>
-#include <fcntl.h>
 
 /**
  * @author Robin Lundin Söderberg
  * cs:hed20rlg
- * Date: 2021-00-00
- * Description: 
+ * Date: 2021-09-15
+ * Description: This program is working as a pipeline in linux.
+ * An pipeline is when you do several commands but the first command
+ * send's the out data to the next command and that command takes the data and use it 
+ * with it's own command, and so on.
+ * An exempel of pipeline in linus is "cat -n mexec.c | grep -B4 -A2 return | less".
+ * This program will take a text-file as a parameter with each command on a new line.
+ * You can also run the program like "./mexec < file" instead of a file input. 
+ * This will take the commands from text-file and store it in stdin buffer.
+ * You can also run the program with "./mexec" and type in the command by your self.
+ * After entering the commands you press ctrl-d to tell the program to run.
  * 
+ * Exampel of a text-file or in data by user:
+ * cat -n mexec.c
+ * grep -B4 -A2 return
+ * less
  * 
  */
 
@@ -36,7 +45,8 @@ int main(int argc, char *argv[]) {
     //Get the commands to string[].
     int numOfCommands = 0;
 
-    //---Function (Canr be in function. Realloc dont work in function, can be a problem to realloc a char *. Maybe need char **)---
+    /*---Function-(Cant be in function. Realloc are not work in function, can be a problem to realloc a char *. Maybe need char **)---*/
+    /*---------------------------------------Read in commands from stdin or file------------------------------------------------------*/
 
     //Sets the pointer to the end of stdin buffer.
     fseek(stdin, 0, SEEK_END);
@@ -68,6 +78,7 @@ int main(int argc, char *argv[]) {
                 int count = loops * 1000;
             
                 if(loops > 1) {
+                    //Reallocate string array for each row.
                     string = realloc(string, (count*sizeof(char) + 1));
                     if(string == NULL) {
                         fprintf(stderr, "Realloc fail");
@@ -82,12 +93,13 @@ int main(int argc, char *argv[]) {
                     exit(EXIT_FAILURE);
                 }
             }
+            //Controll how many numbers of commands/rows.
             numOfCommands = numCommands(string, commandsFrom);
         }
 
         fclose(fp);
 
-    //Check the file is empty or not.
+    //Check the stdin is empty or not.
     }else if(ftell(stdin) == 0) {
 
         fprintf(stderr, "File is empty");
@@ -104,12 +116,14 @@ int main(int argc, char *argv[]) {
             int count = loops * 1000;
             
             if(loops > 1) {
+                //Reallocate string array for each row.
                 string = realloc(string, (count*sizeof(char) + 1));
                 if(string == NULL) {
                     fprintf(stderr, "Realloc fail");
                     exit(EXIT_FAILURE);
                 } 
             }
+            //Check size of the commands, max length is 1024 characters.
             if(strlen(buff) < 1024) {
                 strcat(string, buff);
             } else{
@@ -117,7 +131,7 @@ int main(int argc, char *argv[]) {
                 exit(EXIT_FAILURE);
             } 
         }
-        
+        //Controll how many numbers of commands/rows.
         numOfCommands = numCommands(string, commandsFrom);
            
     } else {
@@ -130,6 +144,7 @@ int main(int argc, char *argv[]) {
             int count = loops * 1000;
             
             if(loops > 1) {
+                //Reallocate string array for each row.
                 string = realloc(string, (count*sizeof(char) + 1));
                 if(string == NULL) {
                     fprintf(stderr, "Realloc fail");
@@ -143,28 +158,27 @@ int main(int argc, char *argv[]) {
                 exit(EXIT_FAILURE);
             }
         }
-        
+        //Set commandFrom to 1 so the function know that the data is from stdin/user.
         commandsFrom = 1;
+        //Controll how many numbers of commands/rows.
         numOfCommands = numCommands(string, commandsFrom);   
     }
     
-    //------------------------------------------------------------------------------------------------------------------
+    /*------------------------------------------------------------------------------------------------------------------*/
 
     int pids[numOfCommands];
     int numOfPipes = numOfCommands - 1;
     int pipes[numOfPipes][2];
     
-    
+    //Open pipes
     for (int i = 0; i < numOfPipes; i++){
         if(pipe(pipes[i]) < 0){
-            perror("Failed to pipe");
+            perror("Failed to pipe\n");
             exit(EXIT_FAILURE);
         }
     }
     
-    
-    
-    
+    //Loop fork as many times commands. children will exit with exec so they dont loop.
     for (int i = 0; i < numOfCommands; i++)
     {
         pids[i] = fork();
@@ -173,58 +187,53 @@ int main(int argc, char *argv[]) {
             perror("Fork failed");
             exit(EXIT_FAILURE);
         } else if(pids[i] == 0){
-
-            /* Close pipes */
-            
+            /*Child code,
+              Close pipes */
             for (int j = 0; j < numOfPipes; j++)
             {
-                
                 if(i != j) {
                     close(pipes[j][1]);
                 }
                 if(i - 1 != j) {
                     close(pipes[j][0]);
-                }
-                
+                } 
             }
             
-            
-            
-            /* Dup2 */
-
+            /* Dup pipe to STDIN_FILENO or STDOUT_FILENO */
             if(i == 0){
-                
+                /* Only the first child will do this */
                 if (dup2(pipes[i][1], STDOUT_FILENO) < 0) {
-                    perror("dup failed 1");
+                    perror("dup on first child failed");
                     close(pipes[i][1]);
                     exit(EXIT_FAILURE);
-                }
-                
+                }  
             } else if (i == (numOfCommands - 1)){
-                
+                /* Only the last child will do this */
                 if (dup2(pipes[i - 1][0], STDIN_FILENO) < 0) {
-                    perror("dup failed 2");
+                    perror("dup on last child failed");
                     close(pipes[i - 1][0]);
                     exit(EXIT_FAILURE);
-                }
-                
+                }  
             } else {
+                /* All the other children will do this */
                 if (dup2(pipes[i - 1][0], STDIN_FILENO) < 0) {
-                    perror("dup failed 2");
+                    perror("dup STDIN_FILENO on middle children failed");
                     close(pipes[i - 1][0]);
                     exit(EXIT_FAILURE);
                 }
                 if (dup2(pipes[i][1], STDOUT_FILENO) < 0) {
-                    perror("dup failed 1");
+                    perror("dup STDOUT_FILENO on middle children failed");
                     close(pipes[i][1]);
                     exit(EXIT_FAILURE);
                 }
             }
             
-            /* Child code*/
+            /* Get the command for the right child */
             char *command = malloc(1024 * sizeof(char) + 1);
             childCommand(command, string, i);
             
+            /* Split the array in to strings with strtok.
+                Dont use strtok if you dont know what's happening with the memory */
             char *arr[] = {NULL};
             char *token = strtok(command, " ");
             arr[0] = token;
@@ -239,29 +248,26 @@ int main(int argc, char *argv[]) {
     
             arr[index] = '\0';
             
-            
-            
-            
-
-            
-                
-            
+            /* Exec of the command */
             if(execvp(arr[0], arr) < 0) {
                 perror("exec fail\n");
                 exit(EXIT_FAILURE);
             }
             
-            
             exit(0);
         }
     }
 
-    /* Parent code */
+    /*-------------Parent code------------------------*/
+
+    /* Close all the pipes */
     for (int i = 0; i < numOfPipes; i++)
     {
         close(pipes[i][0]);
         close(pipes[i][1]);
     }
+
+    /* Wait for all the children to be done */
     for (int j = 0; j < numOfCommands; j++)
     {
         wait(NULL);
@@ -275,7 +281,7 @@ int main(int argc, char *argv[]) {
 }
 
 /**
- * Counts how many commands that was writen to know how many children it needs.
+ * Counts how many commands/rows that was writen to know how many children it needs.
  * @param string All the commands that was writen.
  * @param commandsFrom 0 = commands from files, 1 = commands from user (terminal).
  * @return Returns an int of how many commands that exist in string[].
@@ -297,17 +303,27 @@ int numCommands(char* string, int commandsFrom) {
     return commands;
 }
 
+/**
+ * The function will go through the array of command and save down the correct
+ * command for that child in to a new array.
+ * @param command Will store the command that the child will exec.
+ * @param string Array of all the commands.
+ * @param child An number of which child it is.
+ */
 void childCommand(char* command, char* string, int child) {
-    int k = 0;
+    int commandNum = 0;
     int index = 0;
+
+    /* Loop through the string array */
     for (size_t i = 0; i <= strlen(string); i++)
     {
         if(string[i] == '\n' || string[i] == '\0') {
-            if(k == child){
+            if(commandNum == child){
                 command[index] = '\0';
                 break;
             } else {
-                if(k < 1){
+                /* If it was the wrong command erase the command array by adding '\0' */
+                if(commandNum < 1){
                     for (size_t j = 0; j < i; j++)
                     {
                         command[j] = '\0';
@@ -318,9 +334,10 @@ void childCommand(char* command, char* string, int child) {
                         command[j] = '\0';
                     } 
                 }
+                /* Reset the index for command array */
                 index = 0;
             }
-            k++;
+            commandNum++;
         }else {
            command[index] = string[i]; 
            index++;
