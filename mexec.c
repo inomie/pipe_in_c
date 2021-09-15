@@ -294,8 +294,12 @@ int main(int argc, char *argv[]) {
     /* Wait for all the children to be done */
     for (int j = 0; j < numOfCommands; j++)
     {
-        wait(NULL);
-        
+        int control = wait(NULL);
+        if(control < 0){
+            free(buff);
+            free(string);
+            exit(EXIT_FAILURE);
+        }
     } 
     
     free(buff);
