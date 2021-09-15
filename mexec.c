@@ -66,7 +66,9 @@ int main(int argc, char *argv[]) {
         
         if(fp == NULL) {
 
-            fprintf(stderr, "Cant open file");
+            perror(argv[1]);
+            free(buff);
+            free(string);
             exit(EXIT_FAILURE);
 
         }else {
