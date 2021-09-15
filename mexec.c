@@ -57,7 +57,9 @@ int main(int argc, char *argv[]) {
     //Controll the max arguments.
     if(argc > 2) {
 
-        fprintf(stderr,"Too many argument, max two arguments\n");
+        fprintf(stderr,"usage: ./mexec [FILE]\n");
+        free(buff);
+        free(string);
         exit(EXIT_FAILURE);
 
     }else if (argc == 2){
@@ -258,7 +260,10 @@ int main(int argc, char *argv[]) {
                 if(t != NULL) {
                     token = strtok_r(t, " ", &t);
                 }
-                if(token == NULL) {
+                if(token != NULL) {
+                    arr[index] = token;
+                    index++;
+                } else{
                     arr[index] = NULL;
                     if(execvp(arr[0], arr) < 0) {
                         perror(arr[0]);
@@ -266,11 +271,9 @@ int main(int argc, char *argv[]) {
                         free(string);
                         exit(EXIT_FAILURE);
                     }
-                    break;
+                    exit(EXIT_FAILURE);
                 }
-                arr[index] = token;
                 
-                index++;
             }
 
             
@@ -294,8 +297,9 @@ int main(int argc, char *argv[]) {
     /* Wait for all the children to be done */
     for (int j = 0; j < numOfCommands; j++)
     {
-        int control = wait(NULL);
-        if(control < 0){
+        int controll = wait(NULL);
+        printf("%d\n", controll);
+        if(controll < 0){
             free(buff);
             free(string);
             exit(EXIT_FAILURE);
