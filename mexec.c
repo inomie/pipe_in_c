@@ -246,24 +246,40 @@ int main(int argc, char *argv[]) {
             char *token;
             
             int index = 0;
-            while ((token = strtok_r(t, " ", &t)))
+            while (1)
             {  
+                
+                if(t != NULL) {
+                    token = strtok_r(t, " ", &t);
+                }
+                if(token == NULL) {
+                    arr[index] = NULL;
+                    if(execvp(arr[0], arr) < 0) {
+                        perror(arr[0]);
+                        free(command);
+                        free(buff);
+                        free(string);
+                        exit(EXIT_FAILURE);
+                    }
+                    break;
+                }
                 arr[index] = token;
+                
                 index++;
             }
-    
-            arr[index] = '\0';
+            //arr[index] = NULL;
+        
             
             
             
             /* Exec of the command */
-            if(execvp(arr[0], arr) < 0) {
+            /*if(execvp(arr[0], arr) < 0) {
                 perror(arr[0]);
                 free(command);
                 free(buff);
                 free(string);
                 exit(EXIT_FAILURE);
-            }
+            }*/
             
             exit(0);
         }
