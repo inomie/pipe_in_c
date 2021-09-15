@@ -27,7 +27,7 @@
  */
 
 int numCommands(char* string, int commandsFrom);
-void childCommand(char* command, char* string, int child);
+void childCommand(char command[][1024], char* string);
 
 int main(int argc, char *argv[]) {
 
@@ -235,20 +235,24 @@ int main(int argc, char *argv[]) {
             
             
             /* Get the command for the right child */
-            char *command = malloc(strlen(string) + 1);
-            childCommand(command, string, i);
+            char command[numOfCommands][1024];
+            childCommand(command, string);
             
-            
+
             /* Split the array in to strings with strtok.
                 Dont use strtok if you dont know what's happening with the memory */
             char *arr[] = {NULL};
-            char *t = command;
-            char *token;
             
+            command[i][strlen(command[i]) + 1] = '\0';
+            
+            char *t = command[i];
+
+            char *token;
             int index = 0;
-            while (1)
-            {  
-                
+            
+            //printf("%s\n", arr[index]);
+            
+            while(1){
                 if(t != NULL) {
                     token = strtok_r(t, " ", &t);
                 }
@@ -256,7 +260,6 @@ int main(int argc, char *argv[]) {
                     arr[index] = NULL;
                     if(execvp(arr[0], arr) < 0) {
                         perror(arr[0]);
-                        free(command);
                         free(buff);
                         free(string);
                         exit(EXIT_FAILURE);
@@ -267,10 +270,12 @@ int main(int argc, char *argv[]) {
                 
                 index++;
             }
+
+                printf("%s\n", arr[0]);
+                printf("%s\n", arr[1]);
             //arr[index] = NULL;
-        
             
-            
+            //printf("%s\n", arr[index]);
             
             /* Exec of the command */
             /*if(execvp(arr[0], arr) < 0) {
@@ -280,8 +285,12 @@ int main(int argc, char *argv[]) {
                 free(string);
                 exit(EXIT_FAILURE);
             }*/
-            
+
+            printf("hej du ska ej vara här");
+            free(buff);
+            free(string);
             exit(0);
+            
         }
     }
 
@@ -337,7 +346,7 @@ int numCommands(char* string, int commandsFrom) {
  * @param string Array of all the commands.
  * @param child An number of which child it is.
  */
-void childCommand(char* command, char* string, int child) {
+void childCommand(char command[][1024], char* string) {
     int commandNum = 0;
     int index = 0;
 
@@ -345,28 +354,11 @@ void childCommand(char* command, char* string, int child) {
     for (size_t i = 0; i <= strlen(string); i++)
     {
         if(string[i] == '\n' || string[i] == '\0') {
-            if(commandNum == child){
-                command[index] = '\0';
-                break;
-            } else {
-                /* If it was the wrong command erase the command array by adding '\0' */
-                if(commandNum < 1){
-                    for (size_t j = 0; j < i; j++)
-                    {
-                        command[j] = '\0';
-                    } 
-                } else{
-                    for (size_t j = 0; j < (i - index); j++)
-                    {
-                        command[j] = '\0';
-                    } 
-                }
-                /* Reset the index for command array */
-                index = 0;
-            }
+            command[commandNum][index] = '\0';
             commandNum++;
+            index = 0;
         }else {
-           command[index] = string[i]; 
+           command[commandNum][index] = string[i]; 
            index++;
         } 
     }
