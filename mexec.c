@@ -235,28 +235,33 @@ int main(int argc, char *argv[]) {
             
             
             /* Get the command for the right child */
-            char *command = malloc(1024 * sizeof(char) + 1);
+            char *command = malloc(strlen(string) + 1);
             childCommand(command, string, i);
+            
             
             /* Split the array in to strings with strtok.
                 Dont use strtok if you dont know what's happening with the memory */
             char *arr[] = {NULL};
-            char *token = strtok(command, " ");
-            arr[0] = token;
+            char *t = command;
+            char *token;
             
             int index = 0;
-            while (token != NULL)
+            while ((token = strtok_r(t, " ", &t)))
             {  
                 arr[index] = token;
-                token = strtok(NULL, " ");
                 index++;
             }
     
             arr[index] = '\0';
             
+            
+            
             /* Exec of the command */
             if(execvp(arr[0], arr) < 0) {
                 perror(arr[0]);
+                free(command);
+                free(buff);
+                free(string);
                 exit(EXIT_FAILURE);
             }
             
