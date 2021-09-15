@@ -198,35 +198,41 @@ int main(int argc, char *argv[]) {
                     close(pipes[j][0]);
                 } 
             }
+
             
-            /* Dup pipe to STDIN_FILENO or STDOUT_FILENO */
-            if(i == 0){
-                /* Only the first child will do this */
-                if (dup2(pipes[i][1], STDOUT_FILENO) < 0) {
-                    perror("dup on first child failed");
-                    close(pipes[i][1]);
-                    exit(EXIT_FAILURE);
-                }  
-            } else if (i == (numOfCommands - 1)){
-                /* Only the last child will do this */
-                if (dup2(pipes[i - 1][0], STDIN_FILENO) < 0) {
-                    perror("dup on last child failed");
-                    close(pipes[i - 1][0]);
-                    exit(EXIT_FAILURE);
-                }  
-            } else {
-                /* All the other children will do this */
-                if (dup2(pipes[i - 1][0], STDIN_FILENO) < 0) {
-                    perror("dup STDIN_FILENO on middle children failed");
-                    close(pipes[i - 1][0]);
-                    exit(EXIT_FAILURE);
-                }
-                if (dup2(pipes[i][1], STDOUT_FILENO) < 0) {
-                    perror("dup STDOUT_FILENO on middle children failed");
-                    close(pipes[i][1]);
-                    exit(EXIT_FAILURE);
+
+            if(numOfCommands > 1) {
+                
+                /* Dup pipe to STDIN_FILENO or STDOUT_FILENO */
+                if(i == 0){
+                    /* Only the first child will do this */
+                    if (dup2(pipes[i][1], STDOUT_FILENO) < 0) {
+                        perror("dup on first child failed");
+                        close(pipes[i][1]);
+                        exit(EXIT_FAILURE);
+                    }  
+                } else if (i == (numOfCommands - 1)){
+                    /* Only the last child will do this */
+                    if (dup2(pipes[i - 1][0], STDIN_FILENO) < 0) {
+                        perror("dup on last child failed");
+                        close(pipes[i - 1][0]);
+                        exit(EXIT_FAILURE);
+                    }  
+                } else {
+                    /* All the other children will do this */
+                    if (dup2(pipes[i - 1][0], STDIN_FILENO) < 0) {
+                        perror("dup STDIN_FILENO on middle children failed");
+                        close(pipes[i - 1][0]);
+                        exit(EXIT_FAILURE);
+                    }
+                    if (dup2(pipes[i][1], STDOUT_FILENO) < 0) {
+                        perror("dup STDOUT_FILENO on middle children failed");
+                        close(pipes[i][1]);
+                        exit(EXIT_FAILURE);
+                    }
                 }
             }
+            
             
             /* Get the command for the right child */
             char *command = malloc(1024 * sizeof(char) + 1);
@@ -250,7 +256,7 @@ int main(int argc, char *argv[]) {
             
             /* Exec of the command */
             if(execvp(arr[0], arr) < 0) {
-                perror("exec fail\n");
+                perror(arr[0]);
                 exit(EXIT_FAILURE);
             }
             
