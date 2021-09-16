@@ -135,6 +135,7 @@ int main(int argc, char *argv[]) {
                 exit(EXIT_FAILURE);
             } 
         }
+            
         //Controll how many numbers of commands/rows.
         numOfCommands = numCommands(string, commandsFrom);
            
@@ -203,8 +204,6 @@ int main(int argc, char *argv[]) {
                 } 
             }
 
-            
-
             if(numOfCommands > 1) {
                 
                 /* Dup pipe to STDIN_FILENO or STDOUT_FILENO */
@@ -245,7 +244,7 @@ int main(int argc, char *argv[]) {
 
             /* Split the array in to strings with strtok.
                 Dont use strtok if you dont know what's happening with the memory */
-            char *arr[] = {NULL};
+            char *arr[1024];
             
             command[i][strlen(command[i]) + 1] = '\0';
             
@@ -255,29 +254,30 @@ int main(int argc, char *argv[]) {
             int index = 0;
             
             //printf("%s\n", arr[index]);
-            
+            token = strtok(t, " ");
             while(1){
-                if(t != NULL) {
-                    token = strtok_r(t, " ", &t);
-                }
+                
+                
                 if(token != NULL) {
                     arr[index] = token;
                     index++;
                 } else{
                     arr[index] = NULL;
+                    //fprintf(stderr, "stderr: %d\n", i);
+                    //fprintf(stderr, "child %d arr: %s\n", i, arr[0]);
                     if(execvp(arr[0], arr) < 0) {
                         perror(arr[0]);
                         free(buff);
                         free(string);
                         exit(EXIT_FAILURE);
                     }
-                    exit(EXIT_FAILURE);
+                    return 0;
+                    
                 }
+                token = strtok(NULL, " ");
                 
             }
 
-            
-            
             free(buff);
             free(string);
             exit(EXIT_FAILURE);
@@ -293,13 +293,13 @@ int main(int argc, char *argv[]) {
         close(pipes[i][0]);
         close(pipes[i][1]);
     }
-
+    int stat;
     /* Wait for all the children to be done */
     for (int j = 0; j < numOfCommands; j++)
     {
-        int controll = wait(NULL);
-        printf("%d\n", controll);
-        if(controll < 0){
+        wait(&stat);
+        
+        if(stat > 0){
             free(buff);
             free(string);
             exit(EXIT_FAILURE);
@@ -328,10 +328,11 @@ int numCommands(char* string, int commandsFrom) {
         }
         i++;
     }
+    /* Is not working with the file from school */
     //last command ends with '\0' from files and do not have an '\n'.
-    if(commandsFrom == 0) {
+    /*if(commandsFrom == 0) {
         commands++;  
-    }
+    }*/
     return commands;
 }
 
