@@ -1,11 +1,13 @@
 CC = gcc
-LIBFLAG = -g -std=gnu11 -Werror -Wall -Wextra -Wpedantic -Wmissing-declarations -Wmissing-prototypes -Wold-style-definition -o
+LIBFLAG = -g -std=gnu11 -Wall
 
 all : mexec 
-	gcc -g -std=gnu11 -Wall -o mexec mexec.o
 
-mexec : mexec.c
-	gcc -g -std=gnu11 -Wall   -c -o mexec.o mexec.c
+mexec : mexec.o
+	$(CC) $(LIBFLAG) -o mexec mexec.o
+
+mexec.o : mexec.c
+	$(CC) $(LIBFLAG)   -c -o mexec.o mexec.c
 
 uninstall : 
 	rm mexec
