@@ -25,40 +25,161 @@
  * less
  */
 
-void exec(char command[][1024], char *string, char *buff, int i);
-void childCommand(char command[][1024], char* string);
+#define MAX_LENGTH 1024
+
+void childProcess(char *buff, char *string, int i, int numOfCommands, int numOfPipes, int pipes[][2]);
+void parentProcess(char *buff, char *string, int numOfPipes, int numOfCommands, int pipes[][2]);
+void parentWait(int numOfCommands, char *buff, char *string);
+void makeString(char command[][MAX_LENGTH], char *string, char *buff, int i);
+void childCommand(char command[][MAX_LENGTH], char* string);
 void dupPipes(int i, int pipes[][2], int numOfCommands);
-int readData(int argc, char *argv[], char *buff, char **string);
+int readFile(char *argv[], char *buff, char **string);
+int readStdin(char *buff, char **string);
+int saveData(char **string, char *buff, int size);
+void createPipes(int numOfPipes, int pipes[][2]);
+void exec(char *arr[], char *buff, char *string);
+void createChildProcess(int numOfCommands, int pids[], char *buff, char *string , int numOfPipes, int pipes[][2]);
 
 int main(int argc, char *argv[]) {
 
-    char* buff = (char *)malloc(1024 * sizeof(char) + 1);
-    char* string = (char *)malloc(1024 * sizeof(char) + 1);
-
-    if(buff == NULL || string == NULL){
-        fprintf(stderr, "Malloc failed");
+    char* buff = (char *)malloc(MAX_LENGTH * sizeof(char) + 1);
+    /* Controll malloc */
+    if(buff == NULL){
+        perror(buff);
         exit(EXIT_FAILURE);
     } 
 
-    //Add null to the array so strlen and strcat works.
+    char* string = (char *)malloc(MAX_LENGTH * sizeof(char) + 1);
+    /* Controll malloc */
+    if(string == NULL){
+        perror(string);
+        exit(EXIT_FAILURE);
+    }
+
+    /* Add null to the array so strlen and strcat works. */
     string[0] = '\0';
 
-    /* Read the data from stdin or file */
-    int numOfCommands = readData(argc, argv, buff, &string);
     
+    int numOfCommands = 0;
 
+    /* Check if more then 2 argument's was given */
+    if(argc > 2) {
+        fprintf(stderr,"usage: ./mexec [FILE]\n");
+        free(buff);
+        free(string);
+        exit(EXIT_FAILURE);
+    }else if (argc == 2) {
+        /* Get's the data from an file */
+        numOfCommands = readFile(argv, buff, &string);
+    } else {
+        /* Get's the data from stdin */
+        numOfCommands = readStdin(buff, &string);
+    }
+    
     int pids[numOfCommands];
     int numOfPipes = numOfCommands - 1;
     int pipes[numOfPipes][2];
     
     /* Create all the pipes thats needed */
+    createPipes(numOfPipes, pipes);
+    
+    /* Create the child process */
+    createChildProcess(numOfCommands, pids, buff, string, numOfPipes, pipes);
+
+    /* Parent code */
+    parentProcess(buff, string, numOfPipes, numOfCommands, pipes);
+    
+    free(buff);
+    free(string);
+
+    return 0;
+}
+
+/**
+ * This function takes care of the reading from file.
+ * @param argv Is the argument vector. Contains all the arguments.
+ * @param buff An array to store the data from stdin/file.
+ * @param string An array to save down all the data to.
+ * @return Returns the number of rows/commands.
+ * 
+ */
+int readFile(char *argv[], char *buff, char **string) {
+
+    FILE *fp = fopen(argv[1], "r");
+    
+    if(fp == NULL) {
+        perror(argv[1]);
+        free(buff);
+        free(*string);
+        exit(EXIT_FAILURE);
+    }else {
+        int rows = 0;
+        int size = MAX_LENGTH;
+        while(fgets(buff, MAX_LENGTH, fp) != NULL) {
+            rows++;
+            size = saveData(string, buff, size);
+        }
+        //Return how many lines.
+        fclose(fp);
+        return rows;
+    }
+}
+
+/**
+ * This function takes care of the reading from stdin.
+ * @param argv Is the argument vector. Contains all the arguments.
+ * @param buff An array to store the data from stdin/file.
+ * @param string An array to save down all the data to.
+ * @return Returns the number of rows/commands.
+ * 
+ */
+int readStdin(char *buff, char **string) {
+    //Set the pointer to the end of the stdin buffer.
+    fseek(stdin, 0, SEEK_END);
+    //Check the stdin is empty or not when < is used.
+    if(ftell(stdin) == 0) {
+        fprintf(stderr, "File is empty");
+        exit(EXIT_FAILURE);
+    }else  {
+        //Set the pointer to the beginning of the stdin buffer.
+        fseek(stdin, 0, SEEK_SET);
+        int rows = 0;
+        int size = MAX_LENGTH;
+        while (fgets(buff, MAX_LENGTH, stdin) != NULL){
+            rows++;
+            size = saveData(string, buff, size);    
+        }    
+        //Return how many lines.
+        return rows;     
+    } 
+}
+
+/**
+ * This function will create all the pipes and check that no one fail'd.
+ * @param numOfPipes Is the numer of pipes that need's to be created.
+ * @param pipes Is an two dimensional array for each pipe
+ * it have read and write.
+ * 
+ */
+void createPipes(int numOfPipes, int pipes[][2]) {
     for (int i = 0; i < numOfPipes; i++){
         if(pipe(pipes[i]) < 0){
             perror("Failed to pipe\n");
             exit(EXIT_FAILURE);
         }
     }
-    
+}
+
+/**
+ * This function create's all the child processes that is needed with help of fork().
+ * @param numOfCommands Number of commands.
+ * @param pids An array with all pid numbers.
+ * @param buff Is an array that's need to be free'd if it fail's.
+ * @param string Is an array that's need to be free'd if it fail's.
+ * @param numOfPipes Number of pipes.
+ * @param pipes All the pipes that was created. 
+ */
+void createChildProcess(int numOfCommands, int pids[], char *buff, char *string , int numOfPipes, int pipes[][2]) {
     /* Loop fork as many times as commands.
         Children will exit with exec so they dont loop. */
     for (int i = 0; i < numOfCommands; i++)
@@ -69,51 +190,88 @@ int main(int argc, char *argv[]) {
             perror("Fork failed");
             exit(EXIT_FAILURE);
         } else if(pids[i] == 0){
-            /*Child code, Close pipes */
-            for (int j = 0; j < numOfPipes; j++)
-            {
-                if(i != j) {
-                    close(pipes[j][1]);
-                }
-                if(i - 1 != j) {
-                    close(pipes[j][0]);
-                } 
-            }
-
-            /* Dup the pipes to correct out and in if it's more then one command */
-            if(numOfCommands > 1) {
-                dupPipes(i, pipes, numOfCommands);
-            }
-            
-            char command[numOfCommands][1024];
-
-            /* Devide the strings up */
-            childCommand(command, string);
-            
-            command[i][strlen(command[i]) + 1] = '\0';
-            
-            /* Execvp the command */
-            exec(command, string, buff, i);
-
-            /* This will never happen */
-            free(buff);
-            free(string);
-            exit(EXIT_FAILURE);   
+            /* Child code */
+            childProcess(buff, string, i, numOfCommands, numOfPipes, pipes);
         }
     }
+}
 
-    /*-------------Parent code------------------------*/
+/**
+ * This function is the child process and will just be done by the child and not the parent process.
+ * @param buff Is an array that's need to be free'd if it fail's.
+ * @param string Is an array that's need to be free'd if it fail's.
+ * @param numOfPipes Number of pipes.
+ * @param numOfCommands Number of commands.
+ * @param pipes All the pipes that was created. 
+ * 
+ */
+void childProcess(char *buff, char *string, int i, int numOfCommands, int numOfPipes, int pipes[][2]) {
+    /* Close the pipes that will not be used */
+    for (int j = 0; j < numOfPipes; j++)
+    {
+        if(i != j) {
+            close(pipes[j][1]);
+        }
+        if(i - 1 != j) {
+            close(pipes[j][0]);
+        } 
+    }
 
+    /* Dup the pipes to correct out and in if it's more then one command */
+    if(numOfCommands > 1) {
+        dupPipes(i, pipes, numOfCommands);
+    }
+    
+    /* The command to exec */
+    char command[numOfCommands][MAX_LENGTH];
+
+    /* Devide the strings up */
+    childCommand(command, string);
+    
+    command[i][strlen(command[i]) + 1] = '\0';
+    
+    /* Split array in to strings */
+    makeString(command, string, buff, i);
+
+    /* This will never happen but just in case*/
+    free(buff);
+    free(string);
+    exit(EXIT_FAILURE);
+}
+
+/**
+ * This function is the parent process, This function will only the parent do.
+ * The function will close the pipes and wait for the child process to be done.
+ * @param buff Is an array that's need to be free'd if wait fail's.
+ * @param string Is an array that's need to be free'd if wait fail's.
+ * @param numOfPipes Number of pipes to close.
+ * @param numOfCommands Number of commands.
+ * @param pipes All the pipes that was created.
+ * 
+ */
+void parentProcess(char *buff, char *string, int numOfPipes, int numOfCommands, int pipes[][2]) {
     /* Close all the pipes */
     for (int i = 0; i < numOfPipes; i++)
     {
         close(pipes[i][0]);
         close(pipes[i][1]);
     }
-    int stat;
+    
     /* Wait for all the children to be done */
-    for (int j = 0; j < numOfCommands; j++)
-    {
+    parentWait(numOfCommands, buff, string);
+}
+
+/**
+ * This function will be done by the parent process that will wait for
+ * the child processes to be done and se if they fail'd or not.
+ * @param numOfCommands Number of commands.
+ * @param buff Is an array that's need to be free'd if wait fail's.
+ * @param string Is an array that's need to be free'd if wait fail's.
+ * 
+ */
+void parentWait(int numOfCommands, char *buff, char *string) {
+    int stat;
+    for (int j = 0; j < numOfCommands; j++){
         wait(&stat);
         
         if(stat > 0){
@@ -121,141 +279,38 @@ int main(int argc, char *argv[]) {
             free(string);
             exit(EXIT_FAILURE);
         }
-    } 
-    
-    free(buff);
-    free(string);
-
-    return 0;
+    }
 }
 
 /**
- * This function takes care of the reading from file/stdin.
- * @param argc How command line arguments are passed to the program.
- * @param argv Is the argument vector. Contains all the arguments.
+ * 
+ * This function saves the commands to an array.
+ * If the command's is longer then 1024 it realloc the memory.
+ * @param size Is the size that string need's to be.
  * @param buff An array to store the data from stdin/file.
  * @param string An array to save down all the data to.
- * @return Returns the number of lines/commands.
- * 
+ * @return Returns the size that string need's to be.
  */
-int readData(int argc, char *argv[], char *buff, char **string) {
-    
-    //Controll the max arguments.
-    if(argc > 2) {
-
-        fprintf(stderr,"usage: ./mexec [FILE]\n");
-        free(buff);
-        free(*string);
-        exit(EXIT_FAILURE);
-
-    }else if (argc == 2){
-
-        FILE *fp = fopen(argv[1], "r");
-        
-        if(fp == NULL) {
-
-            perror(argv[1]);
-            free(buff);
-            free(*string);
+int saveData(char **string, char *buff, int size) {
+    /* Realloc if (string + buff) equals or bigger then size */
+    if((strlen(*string) + strlen(buff)) > size) {
+        size += MAX_LENGTH;
+        fprintf(stderr, "hej\n");
+        *string = realloc(*string, (size*sizeof(*string) + 1));
+        if(*string == NULL) {
+            fprintf(stderr, "Realloc fail");
             exit(EXIT_FAILURE);
-
-        }else {
-            
-            int loops = 0;
-            while(fgets(buff, 1026, fp) != NULL) {
-
-                loops++;
-                int count = loops * 1024;
-            
-                if(loops > 1) {
-                    //Reallocate string array for each row.
-                    *string = realloc(*string, (count*sizeof(char) + 1));
-                    if(*string == NULL) {
-                        fprintf(stderr, "Realloc fail");
-                        exit(EXIT_FAILURE);
-                    }
-                }
-                //Check size of the commands, max length is 1024 characters.
-                if (strlen(buff) <= 1024) {
-                    strncat(*string, buff, strlen(buff));
-                } else{
-                    fprintf(stderr, "One command is to long");
-                    exit(EXIT_FAILURE);
-                }
-            }
-            
-            //Return how many lines.
-            fclose(fp);
-            return loops;
-        }
+        } 
     }
-
-    //Set the pointer to the end of the stdin buffer.
-    fseek(stdin, 0, SEEK_END);
-    //Check the stdin is empty or not.
-    if(ftell(stdin) == 0) {
-
-        fprintf(stderr, "File is empty");
+    //Check size of the commands, max length is 1024 characters.
+    if(strlen(buff) <= MAX_LENGTH) {
+        strcat(*string, buff);
+    } else{
+        fprintf(stderr, "One command is to long");
         exit(EXIT_FAILURE);
-
-    }else if (ftell(stdin) > 0) {
-        
-        //Set the pointer to the beginning of the stdin buffer.
-        fseek(stdin, 0, SEEK_SET);
-        int loops = 0;
-        while (fgets(buff, 1026, stdin) != NULL){
-
-            loops++;
-            int count = loops * 1024;
-            
-            if(loops > 1) {
-                //Reallocate string array for each row.
-                *string = realloc(*string, (count*sizeof(char) + 1));
-                if(*string == NULL) {
-                    fprintf(stderr, "Realloc fail");
-                    exit(EXIT_FAILURE);
-                } 
-            }
-            //Check size of the commands, max length is 1024 characters.
-            if(strlen(buff) <= 1024) {
-                strcat(*string, buff);
-            } else{
-                fprintf(stderr, "One command is to long");
-                exit(EXIT_FAILURE);
-            } 
-        }
-            
-        //Return how many lines.
-        return loops;
-           
-    } else {
-        //Set the pointer to the beginning of the stdin buffer.
-        fseek(stdin, 0, SEEK_SET);
-        int loops = 0;
-        //Reads stdin from user until ctrl-d, and check if the commands is under 1025 charcters.
-        while (fgets(buff, 1026, stdin) != NULL){
-
-            loops++;
-            int count = loops * 1000;
-            
-            if(loops > 1) {
-                //Reallocate string array for each row.
-                *string = realloc(*string, (count*sizeof(char) + 1));
-                if(string == NULL) {
-                    fprintf(stderr, "Realloc fail");
-                    exit(EXIT_FAILURE);
-                }  
-            }
-            if(strlen(buff) < 1024) {
-                strcat(*string, buff);
-            } else{
-                fprintf(stderr, "One command is to long");
-                exit(EXIT_FAILURE);
-            }
-        }
-        //Return how many lines.
-        return loops;   
     }
+
+    return size;
 }
 
 /**
@@ -297,19 +352,18 @@ void dupPipes(int i, int pipes[][2], int numOfCommands) {
 }
 
 /**
- * The function devides the array up in to strings and then execute the commands
- * with the function execvp.
+ * The function devides the array up in to strings and then execute the commands.
  * @param command An two dimansional array with all the commands.
  * @param string An array of commands, need to be free'd if fail.
  * @param buff An array used to read in from indata, need to be free'd if failed.
  * @param i The number of the child.
  * 
  */
-void exec(char command[][1024], char *string, char *buff, int i) {
+void makeString(char command[][MAX_LENGTH], char *string, char *buff, int i) {
     
     /* Split the array in to strings with strtok.
         Dont use strtok if you dont know what's happening with the memory */
-    char *arr[1024];
+    char *arr[MAX_LENGTH];
     char *t = command[i];
     char *token;
     int index = 0;
@@ -322,16 +376,26 @@ void exec(char command[][1024], char *string, char *buff, int i) {
             index++;
         } else{
             arr[index] = NULL;
-            //fprintf(stderr, "stderr: %d\n", i);
-            //fprintf(stderr, "child %d arr: %s\n", i, arr[0]);
-            if(execvp(arr[0], arr) < 0) {
-                perror(arr[0]);
-                free(buff);
-                free(string);
-                exit(EXIT_FAILURE);
-            }  
+            exec(arr, buff, string);
+              
         }
         token = strtok(NULL, " ");    
+    }
+}
+
+/**
+ * This function will execute the commands.
+ * @param arr array of string's with commands.
+ * @param buff An array that need's to be free'd if it fail's.
+ * @param string An array that need's to be free'd if it fail's.
+ * 
+ */
+void exec(char *arr[], char *buff, char *string) {
+    if(execvp(arr[0], arr) < 0) {
+        perror(arr[0]);
+        free(buff);
+        free(string);
+        exit(EXIT_FAILURE);
     }
 }
 
@@ -341,8 +405,9 @@ void exec(char command[][1024], char *string, char *buff, int i) {
  * @param command Will store the command that the child will exec.
  * @param string Array of all the commands.
  * @param child An number of which child it is.
+ * 
  */
-void childCommand(char command[][1024], char* string) {
+void childCommand(char command[][MAX_LENGTH], char* string) {
     int commandNum = 0;
     int index = 0;
 
