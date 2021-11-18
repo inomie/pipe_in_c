@@ -1,7 +1,7 @@
 # pipe_in_c
 Description: This program is working as a pipeline in linux.
 An pipeline is when you do several commands but the first command
-send's the out data to the next command and that command takes the data and use it 
+send's the out-data to the next command and that command takes the data and use it 
 with it's own command, and so on.
 
 An exempel of pipeline in linus is "cat -n mexec.c | grep -B4 -A2 return | less".
